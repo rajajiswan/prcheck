@@ -1,4 +1,4 @@
-"""Enforces that a PR body satisfies the required sections from a template."""
+"""Enforces required sections and checkbox completion in PR body text."""
 
 from __future__ import annotations
 
@@ -7,53 +7,49 @@ from dataclasses import dataclass, field
 from typing import List
 
 
-_SECTION_HEADER_RE = re.compile(r"^#{1,4}\s+(.+)$", re.MULTILINE)
-_CHECKBOX_RE = re.compile(r"^\s*-\s*\[\s\]\s+", re.MULTILINE)
-
-
 @dataclass
 class EnforcementResult:
+    """Holds the outcome of a PR body enforcement check."""
+
     missing_sections: List[str] = field(default_factory=list)
     unchecked_boxes: int = 0
 
-    @property
     def passed(self) -> bool:
         return not self.missing_sections and self.unchecked_boxes == 0
 
     def __bool__(self) -> bool:
-        return self.passed
+        return self.passed()
 
 
-def _extract_sections(text: str) -> List[str]:
-    """Return a list of section heading titles found in *text*."""
-    return [m.group(1).strip() for m in _SECTION_HEADER_RE.finditer(text)]
+def _extract_sections(body: str) -> list[str]:
+    """Return all markdown headings (## level) found in the body."""
+    return re.findall(r"^#{1,6}\s+.+", body, re.MULTILINE)
 
 
-def _count_unchecked_boxes(text: str) -> int:
-    """Return the number of unchecked markdown checkboxes in *text*."""
-    return len(_CHECKBOX_RE.findall(text))
+def _count_unchecked_boxes(body: str) -> int:
+    """Return the number of unchecked markdown task-list items."""
+    return len(re.findall(r"^\s*-\s*\[\s\]", body, re.MULTILINE))
 
 
-def enforce(template_body: str, pr_body: str) -> EnforcementResult:
-    """Check that *pr_body* contains all sections present in *template_body*.
+class PRBodyEnforcer:
+    """Checks a PR body against a list of required sections and checkbox rules."""
 
-    Args:
-        template_body: The rendered template string (source of truth).
-        pr_body: The actual PR description submitted by the author.
+    def __init__(self, required_sections: list[str], enforce_checklist: bool = False) -> None:
+        self.required_sections = required_sections
+        self.enforce_checklist = enforce_checklist
 
-    Returns:
-        An :class:`EnforcementResult` describing any violations found.
-    """
-    result = EnforcementResult()
+    def enforce(self, body: str) -> EnforcementResult:
+        """Run all enforcement checks and return an EnforcementResult."""
+        result = EnforcementResult()
 
-    required_sections = _extract_sections(template_body)
-    present_sections = _extract_sections(pr_body)
-    present_lower = {s.lower() for s in present_sections}
+        present = _extract_sections(body)
+        present_lower = [s.strip().lower() for s in present]
 
-    for section in required_sections:
-        if section.lower() not in present_lower:
-            result.missing_sections.append(section)
+        for required in self.required_sections:
+            if required.strip().lower() not in present_lower:
+                result.missing_sections.append(required)
 
-    result.unchecked_boxes = _count_unchecked_boxes(pr_body)
+        if self.enforce_checklist:
+            result.unchecked_boxes = _count_unchecked_boxes(body)
 
-    return result
+        return result

@@ -1,4 +1,4 @@
-"""Writes GitHub Actions outputs and step summary for PR body enforcement."""
+"""Reports enforcement results via GitHub Action outputs and step summaries."""
 
 from __future__ import annotations
 
@@ -7,37 +7,36 @@ from src.pr_body_enforcer import EnforcementResult
 
 
 def report_enforcement_result(result: EnforcementResult) -> None:
-    """Emit GitHub Actions outputs and a step-summary for *result*.
-
-    Outputs set:
-        - ``enforcement_passed``: ``"true"`` or ``"false"``
-        - ``missing_sections``: comma-separated list of missing section names
-        - ``unchecked_boxes``: integer count as a string
-    """
-    passed_str = "true" if result.passed else "false"
-    set_output("enforcement_passed", passed_str)
+    """Emit outputs and write a step summary for the given enforcement result."""
+    passed = bool(result)
+    set_output("enforcement_passed", str(passed).lower())
     set_output("missing_sections", ",".join(result.missing_sections))
     set_output("unchecked_boxes", str(result.unchecked_boxes))
 
-    write_summary(_build_summary(result))
+    summary = _build_summary(result)
+    write_summary(summary)
 
 
 def _build_summary(result: EnforcementResult) -> str:
-    """Return a markdown summary string for the enforcement result."""
-    if result.passed:
-        return "### ✅ PR Body Enforcement Passed\n\nAll required sections are present and all checkboxes are checked.\n"
+    """Build a markdown summary string for the enforcement result."""
+    lines: list[str] = []
 
-    lines = ["### ❌ PR Body Enforcement Failed\n"]
+    if result:
+        lines.append("## ✅ PR Body Enforcement Passed")
+        lines.append("All required sections are present and checkboxes are checked.")
+    else:
+        lines.append("## ❌ PR Body Enforcement Failed")
 
-    if result.missing_sections:
-        lines.append("**Missing sections:**")
-        for section in result.missing_sections:
-            lines.append(f"- `{section}`")
-        lines.append("")
+        if result.missing_sections:
+            lines.append("")
+            lines.append("### Missing Sections")
+            for section in result.missing_sections:
+                lines.append(f"- `{section}`")
 
-    if result.unchecked_boxes:
-        lines.append(
-            f"**Unchecked checklist items:** {result.unchecked_boxes} item(s) still need to be checked off.\n"
-        )
+        if result.unchecked_boxes > 0:
+            lines.append("")
+            lines.append(
+                f"### Unchecked Boxes: {result.unchecked_boxes} item(s) not checked"
+            )
 
     return "\n".join(lines)

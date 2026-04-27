@@ -1,117 +1,121 @@
-"""Tests for src/pr_body_enforcer.py."""
+"""Tests for pr_body_enforcer module."""
+
+from __future__ import annotations
 
 import pytest
 
 from src.pr_body_enforcer import (
     EnforcementResult,
+    PRBodyEnforcer,
     _count_unchecked_boxes,
     _extract_sections,
-    enforce,
 )
 
-
-TEMPLATE = """\
+PR_BODY_FULL = """
 ## Description
 
-Describe your changes here.
+This PR adds a new feature.
 
-## Motivation
+## Testing
 
-Why is this change needed?
-
-## Checklist
-- [ ] Tests added
-- [ ] Docs updated
-"""
-
-GOOD_PR_BODY = """\
-## Description
-
-Added new feature X.
-
-## Motivation
-
-Improves performance.
+- [x] Unit tests added
+- [x] Integration tests verified
 
 ## Checklist
-- [x] Tests added
+
 - [x] Docs updated
 """
 
-MISSING_SECTION_BODY = """\
+PR_BODY_MISSING_SECTION = """
 ## Description
 
-Added new feature X.
-
-## Checklist
-- [x] Tests added
+Only a description here.
 """
 
-UNCHECKED_BODY = """\
+PR_BODY_UNCHECKED = """
 ## Description
 
 Some text.
 
-## Motivation
-
-Some reason.
-
 ## Checklist
-- [ ] Tests added
-- [x] Docs updated
+
+- [ ] Item one
+- [x] Item two
+- [ ] Item three
 """
 
 
 class TestEnforcementResult:
-    def test_initial_state_is_passing(self):
-        r = EnforcementResult()
-        assert r.passed is True
-        assert bool(r) is True
+    def test_initial_state_is_passing(self) -> None:
+        result = EnforcementResult()
+        assert result.passed() is True
+        assert bool(result) is True
 
-    def test_missing_section_fails(self):
-        r = EnforcementResult(missing_sections=["Motivation"])
-        assert r.passed is False
+    def test_missing_section_fails(self) -> None:
+        result = EnforcementResult(missing_sections=["## Description"])
+        assert result.passed() is False
+        assert bool(result) is False
 
-    def test_unchecked_boxes_fail(self):
-        r = EnforcementResult(unchecked_boxes=1)
-        assert r.passed is False
+    def test_unchecked_boxes_fail(self) -> None:
+        result = EnforcementResult(unchecked_boxes=2)
+        assert result.passed() is False
+
+    def test_both_failures(self) -> None:
+        result = EnforcementResult(missing_sections=["## Foo"], unchecked_boxes=1)
+        assert bool(result) is False
 
 
 class TestExtractSections:
-    def test_finds_all_headings(self):
-        sections = _extract_sections(TEMPLATE)
-        assert sections == ["Description", "Motivation", "Checklist"]
+    def test_finds_all_headings(self) -> None:
+        sections = _extract_sections(PR_BODY_FULL)
+        headings = [s.strip() for s in sections]
+        assert "## Description" in headings
+        assert "## Testing" in headings
+        assert "## Checklist" in headings
 
-    def test_empty_string_returns_empty(self):
+    def test_empty_body_returns_empty(self) -> None:
         assert _extract_sections("") == []
+
+    def test_no_headings(self) -> None:
+        assert _extract_sections("Just some plain text.") == []
 
 
 class TestCountUncheckedBoxes:
-    def test_counts_correctly(self):
-        assert _count_unchecked_boxes(UNCHECKED_BODY) == 1
+    def test_counts_unchecked(self) -> None:
+        assert _count_unchecked_boxes(PR_BODY_UNCHECKED) == 2
 
-    def test_no_boxes(self):
-        assert _count_unchecked_boxes(GOOD_PR_BODY) == 0
+    def test_no_unchecked(self) -> None:
+        assert _count_unchecked_boxes(PR_BODY_FULL) == 0
+
+    def test_empty_body(self) -> None:
+        assert _count_unchecked_boxes("") == 0
 
 
-class TestEnforce:
-    def test_valid_pr_passes(self):
-        result = enforce(TEMPLATE, GOOD_PR_BODY)
-        assert result.passed is True
+class TestPRBodyEnforcer:
+    def test_passes_with_all_sections(self) -> None:
+        enforcer = PRBodyEnforcer(required_sections=["## Description", "## Testing"])
+        result = enforcer.enforce(PR_BODY_FULL)
+        assert bool(result) is True
         assert result.missing_sections == []
+
+    def test_fails_with_missing_section(self) -> None:
+        enforcer = PRBodyEnforcer(required_sections=["## Description", "## Testing"])
+        result = enforcer.enforce(PR_BODY_MISSING_SECTION)
+        assert bool(result) is False
+        assert "## Testing" in result.missing_sections
+
+    def test_checklist_not_enforced_by_default(self) -> None:
+        enforcer = PRBodyEnforcer(required_sections=[])
+        result = enforcer.enforce(PR_BODY_UNCHECKED)
         assert result.unchecked_boxes == 0
 
-    def test_missing_section_detected(self):
-        result = enforce(TEMPLATE, MISSING_SECTION_BODY)
-        assert result.passed is False
-        assert "Motivation" in result.missing_sections
+    def test_checklist_enforced_when_enabled(self) -> None:
+        enforcer = PRBodyEnforcer(required_sections=[], enforce_checklist=True)
+        result = enforcer.enforce(PR_BODY_UNCHECKED)
+        assert result.unchecked_boxes == 2
+        assert bool(result) is False
 
-    def test_unchecked_boxes_detected(self):
-        result = enforce(TEMPLATE, UNCHECKED_BODY)
-        assert result.passed is False
-        assert result.unchecked_boxes == 1
-
-    def test_section_match_is_case_insensitive(self):
-        body = GOOD_PR_BODY.replace("## Description", "## description")
-        result = enforce(TEMPLATE, body)
-        assert "Description" not in result.missing_sections
+    def test_no_required_sections_always_passes_sections(self) -> None:
+        enforcer = PRBodyEnforcer(required_sections=[])
+        result = enforcer.enforce("")
+        assert result.missing_sections == []

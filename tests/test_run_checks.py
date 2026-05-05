@@ -49,6 +49,14 @@ class TestCheckSuite:
         assert "desc error" in suite.errors
         assert "label error" in suite.errors
 
+    def test_bool_false_when_label_fails(self):
+        """Ensure a failing label result alone marks the suite as failed."""
+        from src.branch_label_enforcer import LabelEnforcementResult
+        lr = LabelEnforcementResult()
+        lr.fail("missing required label")
+        suite = CheckSuite(label_result=lr)
+        assert bool(suite) is False
+
 
 class TestRunChecks:
     def test_returns_check_suite(self, feature_branch, base_config, tmp_path):

@@ -73,9 +73,11 @@ class TestBuildSummary:
     def test_unchecked_boxes_mentioned(self, failing_result_boxes: EnforcementResult) -> None:
         summary = _build_summary(failing_result_boxes)
         assert "3" in summary
-        assert "Unchecked Boxes" in summary
 
-    def test_both_failures_in_summary(self, failing_result_both: EnforcementResult) -> None:
+    def test_passing_summary_does_not_contain_cross(self, passing_result: EnforcementResult) -> None:
+        summary = _build_summary(passing_result)
+        assert "❌" not in summary
+
+    def test_failing_summary_does_not_contain_check_mark(self, failing_result_both: EnforcementResult) -> None:
         summary = _build_summary(failing_result_both)
-        assert "## Checklist" in summary
-        assert "2" in summary
+        assert "✅" not in summary

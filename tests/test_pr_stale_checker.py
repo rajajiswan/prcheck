@@ -91,6 +91,15 @@ class TestCheckPrStale:
         assert result.is_stale is True
 
     def test_exactly_on_warn_threshold(self):
+        """A PR updated exactly warn_days ago should trigger a warning but not be stale."""
         result = check_pr_stale(_ts(14), stale_days=30, warn_days=14)
         assert result.passed is True
+        assert result.is_stale is False
         assert len(result.warnings) == 1
+
+    def test_one_day_before_warn_threshold_is_clean(self):
+        """A PR updated one day before the warn threshold should produce no warnings."""
+        result = check_pr_stale(_ts(13), stale_days=30, warn_days=14)
+        assert result.passed is True
+        assert result.is_stale is False
+        assert result.warnings == []

@@ -88,3 +88,11 @@ class TestFetchPRDiff:
         result = fetch_pr_diff(client, "owner/repo", 99)
         assert result.ok
         assert len(result) == 0
+
+    def test_returns_error_on_unexpected_exception(self, client):
+        """Non-API exceptions (e.g. network errors) should also produce an error result."""
+        client.get.side_effect = ConnectionError("connection refused")
+        result = fetch_pr_diff(client, "owner/repo", 5)
+        assert not result.ok
+        assert "connection refused" in result.error
+        assert result.files == []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -24,6 +25,11 @@ class FileCheckResult:
         return self.passed
 
 
+def _match_files(files: List[str], pattern: str) -> List[str]:
+    """Return files from the list that match the given fnmatch pattern."""
+    return [f for f in files if fnmatch.fnmatch(f, pattern)]
+
+
 def check_pr_files(
     diff: PRDiff,
     forbidden_patterns: Optional[List[str]] = None,
@@ -44,8 +50,7 @@ def check_pr_files(
 
     forbidden = forbidden_patterns or []
     for pattern in forbidden:
-        import fnmatch
-        matched = [f for f in diff.files if fnmatch.fnmatch(f, pattern)]
+        matched = _match_files(diff.files, pattern)
         if matched:
             result.fail(
                 f"PR modifies forbidden file(s) matching '{pattern}': {', '.join(matched)}"
@@ -54,8 +59,7 @@ def check_pr_files(
 
     required = required_patterns or []
     for pattern in required:
-        import fnmatch
-        matched = [f for f in diff.files if fnmatch.fnmatch(f, pattern)]
+        matched = _match_files(diff.files, pattern)
         if matched:
             result.matched_patterns.append(pattern)
         else:

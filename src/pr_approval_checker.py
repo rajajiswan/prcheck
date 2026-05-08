@@ -29,7 +29,20 @@ def check_pr_approvals(
     dismiss_stale: bool = False,
     approved_states: Optional[List[str]] = None,
 ) -> ApprovalResult:
-    """Check whether a PR has the required number of approvals."""
+    """Check whether a PR has the required number of approvals.
+
+    Args:
+        reviews: List of review objects from the GitHub API.
+        required_approvals: Minimum number of approvals needed to pass.
+        require_team: If set, only approvals from members of this team count.
+        dismiss_stale: If True, a later non-approving review from the same user
+            overrides their earlier approval (stale dismissal behaviour).
+        approved_states: Review states that count as an approval.
+            Defaults to ["APPROVED"].
+
+    Returns:
+        An ApprovalResult indicating whether the PR meets approval requirements.
+    """
     if approved_states is None:
         approved_states = ["APPROVED"]
 

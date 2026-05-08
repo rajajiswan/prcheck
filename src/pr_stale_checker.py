@@ -24,6 +24,20 @@ class StaleResult:
         return self.passed
 
 
+def _days_since(updated_at: str) -> int:
+    """Return the number of whole days elapsed since *updated_at*.
+
+    Args:
+        updated_at: ISO-8601 timestamp string (e.g. from the GitHub API).
+
+    Raises:
+        ValueError: If the timestamp cannot be parsed.
+    """
+    updated_dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    now = datetime.now(tz=timezone.utc)
+    return (now - updated_dt).days
+
+
 def check_pr_stale(
     updated_at: str,
     stale_days: int = 30,
@@ -41,14 +55,11 @@ def check_pr_stale(
     result = StaleResult()
 
     try:
-        updated_dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        days = _days_since(updated_at)
     except (ValueError, AttributeError) as exc:
         result.fail(f"Could not parse updated_at timestamp: {exc}")
         return result
 
-    now = datetime.now(tz=timezone.utc)
-    delta = now - updated_dt
-    days = delta.days
     result.days_since_update = days
 
     if days >= stale_days:

@@ -24,6 +24,17 @@ class CIStatusResult:
     def __bool__(self) -> bool:
         return self.passed
 
+    def summary(self) -> str:
+        """Return a human-readable summary of the CI status result."""
+        parts = [
+            f"Total checks: {self.total_checks}",
+            f"Failed: {len(self.failed_checks)}",
+            f"Pending: {len(self.pending_checks)}",
+            f"Warnings: {len(self.warnings)}",
+        ]
+        status = "PASSED" if self.passed else "FAILED"
+        return f"[{status}] " + " | ".join(parts)
+
 
 def check_pr_ci_status(
     statuses: List[dict],
